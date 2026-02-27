@@ -1,16 +1,20 @@
 # Pytheus Watchdog
 
-Unified system and platform monitoring web app with AI-powered alert triage (Phase 3).
+Unified system and platform monitoring web app with AI-powered alert triage.
 
 Built and supported by **Pytheus**. Deployed to `vps.pytheus.com` via Docker.
 
-## Features (Phase 1 MVP)
+## Features
 
 - **HTTP/HTTPS Endpoint Monitoring** - Monitor uptime, response time, status codes, and content matching
-- **Smart Alert Retry Logic** - Automatically retries failed checks 3 times with exponential backoff to filter transient issues
+- **Ping/ICMP Monitoring** - Monitor network connectivity to hosts (e.g., Tailscale gateways)
+- **Status Page Parsing** - Scrape third-party status pages (Replit, Jedox, etc.) to detect platform issues
+- **AI-Powered Triage** - Claude AI confirms platform issues before alerting, reducing false positives
+- **Smart Alert Retry Logic** - Retries failed checks 3 times with exponential backoff
 - **Dead Man's Switch** - Webhook endpoints for cron jobs and workflows to ping on success
+- **Daily Status Digest** - Automated morning report at 7am Pacific with full system status
 - **Multi-Channel Notifications** - Slack and Telegram notifications with severity-based formatting
-- **Real-time Dashboard** - Clean, minimal web interface showing service status, uptime, and incidents
+- **Real-time Dashboard** - Clean web interface showing service status, uptime, and incidents
 - **Incident Management** - Automatic incident creation, tracking, and resolution
 - **Uptime Tracking** - Calculate and display uptime percentages over 24h, 7d, and 30d periods
 
@@ -21,7 +25,8 @@ Built and supported by **Pytheus**. Deployed to `vps.pytheus.com` via Docker.
 - **Backend**: Python + FastAPI
 - **Frontend**: React + Tailwind CSS + Vite
 - **Database**: SQLite (with async support via aiosqlite)
-- **Scheduler**: APScheduler (for running periodic checks)
+- **Scheduler**: APScheduler (interval and cron triggers)
+- **AI**: Anthropic Claude API for alert triage
 - **Deployment**: Docker + Docker Compose
 - **Reverse Proxy**: Nginx with Let's Encrypt SSL
 
@@ -41,13 +46,14 @@ Fully containerized with:
 
 - Docker and Docker Compose installed
 - Domain name pointed to your VPS (e.g., `watchdog.pytheus.com`)
-- Slack webhook URL (optional but recommended)
-- Telegram bot token and chat ID (optional but recommended)
+- Telegram bot token and chat ID
+- Slack webhook URL (optional)
+- Anthropic API key (for AI triage)
 
 ### 1. Clone and Configure
 
 ```bash
-git clone <repository-url>
+git clone https://github.com/spalkoski/pytheus-watchdog.git
 cd pytheus-watchdog
 
 # Copy and edit environment variables
@@ -61,6 +67,7 @@ Edit `config/watchdog.yaml` to add your services:
 
 ```yaml
 targets:
+  # HTTP endpoint monitoring
   - name: "My Service"
     type: http
     url: "https://myservice.com/health"
@@ -68,6 +75,23 @@ targets:
     severity: critical
     alerts: [slack, telegram]
     timeout: 10
+
+  # Ping/ICMP monitoring (e.g., Tailscale networks)
+  - name: "Tailscale Gateway"
+    type: ping
+    host: "10.1.1.1"
+    interval: 60
+    severity: critical
+    alerts: [slack, telegram]
+    timeout: 5
+
+  # Status page monitoring (auto-detected by name/URL)
+  - name: "Replit Status"
+    type: http
+    url: "https://status.replit.com"
+    interval: 300
+    severity: warning
+    alerts: [slack, telegram]
 ```
 
 ### 3. Build and Deploy
@@ -83,7 +107,7 @@ docker compose up -d
 docker compose logs -f
 
 # Verify health
-curl http://localhost:8000/api/health
+curl http://localhost:8100/api/health
 ```
 
 ### 4. Configure Nginx Reverse Proxy
@@ -91,14 +115,8 @@ curl http://localhost:8000/api/health
 ```bash
 # Copy Nginx config
 sudo cp nginx/watchdog.conf /etc/nginx/sites-available/watchdog.conf
-
-# Create symlink
 sudo ln -s /etc/nginx/sites-available/watchdog.conf /etc/nginx/sites-enabled/
-
-# Test configuration
 sudo nginx -t
-
-# Reload Nginx
 sudo systemctl reload nginx
 ```
 
@@ -112,101 +130,67 @@ sudo certbot --nginx -d watchdog.pytheus.com
 
 Visit `https://watchdog.pytheus.com` to see your monitoring dashboard!
 
-## Setting Up Telegram Notifications
+## Notification Setup
 
-### Step 1: Create a Telegram Bot
+### Telegram
 
-1. Open Telegram and message [@BotFather](https://t.me/BotFather)
-2. Send `/newbot` and follow the prompts
-3. Choose a name (e.g., "Pytheus Watchdog")
-4. Choose a username (e.g., "pytheus_watchdog_bot")
-5. Copy the **bot token** (looks like `123456789:ABCdefGHIjklMNOpqrsTUVwxyz`)
+1. Message [@BotFather](https://t.me/BotFather) and send `/newbot`
+2. Copy the bot token
+3. Message your bot, then get your chat ID:
+   ```bash
+   curl "https://api.telegram.org/bot<TOKEN>/getUpdates"
+   ```
+4. Add to `.env`:
+   ```
+   TELEGRAM_BOT_TOKEN=123456789:ABCdefGHIjklMNOpqrsTUVwxyz
+   TELEGRAM_CHAT_ID=123456789
+   ```
 
-### Step 2: Get Your Chat ID
+### Slack
 
-**Option A: Personal Chat**
-1. Message your bot with any text (e.g., "/start")
-2. Visit: `https://api.telegram.org/bot<YOUR_BOT_TOKEN>/getUpdates`
-3. Look for `"chat":{"id":123456789` - that's your chat ID
+1. Create an [Incoming Webhook](https://api.slack.com/messaging/webhooks)
+2. Add to `.env`:
+   ```
+   SLACK_WEBHOOK_URL=https://hooks.slack.com/services/YOUR/WEBHOOK/URL
+   ```
 
-**Option B: Group Chat**
-1. Create a group and add your bot to it
-2. Make the bot an admin (optional but recommended)
-3. Send a message in the group
-4. Visit: `https://api.telegram.org/bot<YOUR_BOT_TOKEN>/getUpdates`
-5. Look for the chat ID (will be negative for groups, e.g., `-123456789`)
-
-### Step 3: Add to .env
-
-```bash
-TELEGRAM_BOT_TOKEN=123456789:ABCdefGHIjklMNOpqrsTUVwxyz
-TELEGRAM_CHAT_ID=123456789  # or -123456789 for groups
-```
-
-### Step 4: Test Notifications
-
-Restart the container and trigger a test alert by temporarily making a monitored service unreachable.
-
-## Setting Up Slack Notifications
-
-1. Go to [Slack Incoming Webhooks](https://api.slack.com/messaging/webhooks)
-2. Create a new webhook for your workspace
-3. Choose the channel (e.g., `#monitoring`)
-4. Copy the webhook URL
-5. Add to `.env`:
+### Test Notifications
 
 ```bash
-SLACK_WEBHOOK_URL=https://hooks.slack.com/services/YOUR/WEBHOOK/URL
+# Test Telegram
+curl -X POST http://localhost:8100/api/test-notification/telegram
+
+# Test Slack
+curl -X POST http://localhost:8100/api/test-notification/slack
+
+# Test daily digest
+curl -X POST http://localhost:8100/api/test-digest
 ```
 
-## Dead Man's Switch Setup
+## Daily Status Digest
 
-Dead man's switches monitor cron jobs and workflows by expecting regular "pings". If a ping is missed, you'll be alerted.
+Every day at **7:00 AM Pacific**, you'll receive a status report including:
+- Overall system health (all up, issues detected, degradation)
+- Status of each monitored service with 24h uptime percentage
+- Dead man's switch statuses
+- Summary counts (up/down/degraded)
 
-### Getting Webhook URLs
+This ensures you're reminded of any long-standing issues even if no new alerts fire.
 
-Visit the dashboard and navigate to the Dead Man's Switches section, or use the API:
+## AI-Powered Triage
 
-```bash
-curl https://watchdog.pytheus.com/api/deadman/YOUR_SWITCH_NAME/webhook-url
-```
+When a status page shows potential issues, the AI triage system:
+1. Parses the status page HTML for incident indicators
+2. Sends the content to Claude for analysis
+3. Determines if the issue is real or a false positive
+4. Only creates an incident if confirmed
+5. Provides a summary explaining the AI's reasoning
 
-### Using in Cron Jobs
+This dramatically reduces false positive alerts from status pages.
 
-```bash
-# Example cron job that pings on success
-0 * * * * /path/to/script.sh && curl -X POST https://watchdog.pytheus.com/api/ping/YOUR_TOKEN
-```
+## Monitoring Types
 
-### Using in n8n Workflows
-
-Add an HTTP Request node at the end of your workflow:
-- Method: POST
-- URL: `https://watchdog.pytheus.com/api/ping/YOUR_TOKEN`
-
-### Using in Python Scripts
-
-```python
-import requests
-
-def my_task():
-    # Your task logic here
-    pass
-
-try:
-    my_task()
-    # Ping on success
-    requests.post("https://watchdog.pytheus.com/api/ping/YOUR_TOKEN")
-except Exception as e:
-    print(f"Task failed: {e}")
-    # Don't ping - watchdog will alert after expected_interval
-```
-
-## Monitoring Configuration
-
-### Target Types
-
-**HTTP Checks**
+### HTTP Checks
 ```yaml
 - name: "My API"
   type: http
@@ -219,204 +203,140 @@ except Exception as e:
   alerts: [slack, telegram]
 ```
 
-### Severity Levels
-
-- `critical` - Production systems, customer-facing services
-- `warning` - Non-critical services, degraded performance
-- `info` - Informational notifications
-
-### Notification Channels
-
-Configure in `config/watchdog.yaml`:
+### Ping/ICMP Checks
 ```yaml
-notifications:
-  slack:
-    enabled: true
-    webhook_url: ${SLACK_WEBHOOK_URL}
-  telegram:
-    enabled: true
-    bot_token: ${TELEGRAM_BOT_TOKEN}
-    chat_id: ${TELEGRAM_CHAT_ID}
+- name: "Network Gateway"
+  type: ping
+  host: "10.1.1.1"
+  interval: 60
+  timeout: 5
+  severity: critical
+  alerts: [slack, telegram]
 ```
 
-## Data Management
+### Dead Man's Switches
+```yaml
+deadman_switches:
+  - name: "Daily Backup"
+    expected_interval: 86400  # 24 hours
+    severity: critical
+    alerts: [slack, telegram]
+```
 
-### Backup Data Volume
+## Dead Man's Switch Usage
 
+### Get Webhook URL
 ```bash
-# Stop container
-docker compose down
-
-# Backup SQLite database
-docker run --rm -v pytheus-watchdog-data:/data -v $(pwd):/backup alpine tar czf /backup/watchdog-backup-$(date +%Y%m%d).tar.gz -C /data .
-
-# Restart container
-docker compose up -d
+curl https://watchdog.pytheus.com/api/deadman/YOUR_SWITCH_NAME/webhook-url
 ```
 
-### Restore from Backup
-
+### In Cron Jobs
 ```bash
-# Stop container
-docker compose down
-
-# Remove old volume
-docker volume rm pytheus-watchdog-data
-
-# Create new volume
-docker volume create pytheus-watchdog-data
-
-# Restore data
-docker run --rm -v pytheus-watchdog-data:/data -v $(pwd):/backup alpine tar xzf /backup/watchdog-backup-YYYYMMDD.tar.gz -C /data
-
-# Restart container
-docker compose up -d
+0 * * * * /path/to/script.sh && curl -X POST https://watchdog.pytheus.com/api/ping/YOUR_TOKEN
 ```
 
-### Data Retention
+### In n8n Workflows
+Add an HTTP Request node at the end:
+- Method: POST
+- URL: `https://watchdog.pytheus.com/api/ping/YOUR_TOKEN`
 
-- Check results: 90 days (configurable in Phase 4)
-- Incidents: Indefinite
-- Database is automatically managed by SQLAlchemy
+### In Python
+```python
+import requests
+
+try:
+    my_task()
+    requests.post("https://watchdog.pytheus.com/api/ping/YOUR_TOKEN")
+except Exception as e:
+    pass  # Don't ping - watchdog will alert
+```
 
 ## API Endpoints
 
-### Dashboard
-- `GET /api/dashboard` - Full dashboard data
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/health` | GET | Health check |
+| `/api/dashboard` | GET | Full dashboard data |
+| `/api/targets/{name}/history` | GET | Check history for a target |
+| `/api/incidents` | GET | List incidents |
+| `/api/incidents/{id}/acknowledge` | POST | Acknowledge incident |
+| `/api/ping/{token}` | POST | Dead man's switch ping |
+| `/api/deadman/{name}/webhook-url` | GET | Get webhook URL |
+| `/api/test-notification/{channel}` | POST | Test notification (telegram/slack) |
+| `/api/test-digest` | POST | Send test daily digest |
 
-### Targets
-- `GET /api/targets/{name}/history?hours=24` - Check history for a target
+## Data Management
 
-### Incidents
-- `GET /api/incidents?status=open` - List incidents
-- `POST /api/incidents/{id}/acknowledge` - Acknowledge incident
+### Backup
+```bash
+docker compose down
+docker run --rm -v pytheus-watchdog-data:/data -v $(pwd):/backup alpine \
+  tar czf /backup/watchdog-backup-$(date +%Y%m%d).tar.gz -C /data .
+docker compose up -d
+```
 
-### Dead Man's Switch
-- `POST /api/ping/{token}` - Receive ping (called by your services)
-- `GET /api/deadman/{name}/webhook-url` - Get webhook URL
-
-### Health
-- `GET /api/health` - Health check endpoint
-
-## Resource Usage
-
-Expected resource consumption:
-- **CPU**: 0.25-0.5 cores (limited to 0.5)
-- **Memory**: 256-512MB (limited to 512MB)
-- **Disk**: ~100MB + SQLite database growth (~1MB per 10,000 checks)
-- **Network**: Minimal (only outbound checks and notifications)
+### Restore
+```bash
+docker compose down
+docker volume rm pytheus-watchdog-data
+docker volume create pytheus-watchdog-data
+docker run --rm -v pytheus-watchdog-data:/data -v $(pwd):/backup alpine \
+  tar xzf /backup/watchdog-backup-YYYYMMDD.tar.gz -C /data
+docker compose up -d
+```
 
 ## Troubleshooting
 
-### Container won't start
-
+### Check Logs
 ```bash
-# Check logs
-docker compose logs
-
-# Check if port 8000 is available
-sudo netstat -tlnp | grep 8000
-
-# Verify .env file exists and has correct values
-cat .env
+docker compose logs -f
+docker compose logs --tail 50 | grep -i error
 ```
 
-### Notifications not working
-
+### Test from Inside Container
 ```bash
-# Check Slack webhook
-curl -X POST -H 'Content-type: application/json' \
-  --data '{"text":"Test from Pytheus Watchdog"}' \
-  YOUR_SLACK_WEBHOOK_URL
-
-# Check Telegram bot
-curl "https://api.telegram.org/botYOUR_BOT_TOKEN/sendMessage?chat_id=YOUR_CHAT_ID&text=Test"
-```
-
-### Monitoring checks failing
-
-```bash
-# Enter container
-docker compose exec watchdog-app bash
-
-# Test URL from inside container
+docker compose exec pytheus-watchdog bash
 curl -v https://your-service.com
-
-# Check DNS resolution
-nslookup your-service.com
+ping 10.1.1.1
 ```
 
-### Database issues
-
+### Access Database
 ```bash
-# Access SQLite database
-docker compose exec watchdog-app sqlite3 /app/data/watchdog.db
-
-# List tables
+docker compose exec pytheus-watchdog sqlite3 /app/data/watchdog.db
 .tables
-
-# Check recent checks
 SELECT * FROM check_results ORDER BY checked_at DESC LIMIT 10;
-
-# Exit
 .quit
 ```
 
 ## Updating
 
 ```bash
-# Pull latest changes
 git pull
-
-# Rebuild and restart
-docker compose down
 docker compose build
 docker compose up -d
-
-# Check logs
-docker compose logs -f
 ```
 
-## Complete Teardown
+## Resource Usage
 
-```bash
-# Stop and remove containers
-docker compose down
-
-# Remove volumes (WARNING: deletes all data)
-docker volume rm pytheus-watchdog-data
-
-# Remove network
-docker network rm pytheus-watchdog-network
-
-# Remove images
-docker rmi $(docker images | grep pytheus-watchdog | awk '{print $3}')
-```
+- **CPU**: 0.25-0.5 cores (limited to 0.5)
+- **Memory**: 256-512MB (limited to 512MB)
+- **Disk**: ~100MB + database growth
 
 ## Roadmap
 
-### Phase 2 - Platform Awareness (Coming Soon)
-- Status page scraping for third-party platforms
-- Correlation logic (cross-reference with platform status)
-- Server resource monitoring
-
-### Phase 3 - AI Triage
-- LLM integration (Claude/OpenAI)
-- Smart alert summarization
-- Root cause hints
-
-### Phase 4 - Polish
+### Phase 4 - Polish (Planned)
 - Configuration UI
 - Public status page
 - Email notifications
 - SMS via Twilio
 - Advanced analytics
+- Data retention policies
 
 ## Support
 
 Built and maintained by **Pytheus**.
 
-For issues, questions, or feature requests, contact the development team.
+GitHub: https://github.com/spalkoski/pytheus-watchdog
 
 ## License
 
