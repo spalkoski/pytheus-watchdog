@@ -41,7 +41,7 @@ export default function Dashboard({ data, onRefresh }) {
           <h2 className="text-sm font-semibold text-red-300 mb-2 flex items-center gap-2">
             <span>⚠️</span> Active Incidents ({data.active_incidents.length})
           </h2>
-          <IncidentList incidents={data.active_incidents} />
+          <IncidentList incidents={data.active_incidents} onDelete={onRefresh} />
         </section>
       )}
 

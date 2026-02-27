@@ -26,6 +26,27 @@ class MonitoringService:
         self.backoff_multiplier = self.retry_config.get("backoff_multiplier", 1.5)
         self.active_incidents: Dict[str, int] = {}  # target_name -> incident_id
 
+    async def sync_active_incidents(self, db: AsyncSession):
+        """Sync active_incidents dict with database on startup to prevent duplicates"""
+        result = await db.execute(
+            select(Incident).where(Incident.status.in_(["open", "acknowledged"]))
+        )
+        active_incidents = result.scalars().all()
+
+        for incident in active_incidents:
+            # For deadman switches, use the special key format
+            if "Dead Man" in incident.title or "deadman" in incident.title.lower():
+                key = f"deadman_{incident.target_name}"
+            else:
+                key = incident.target_name
+
+            # Only track the most recent incident for each target
+            if key not in self.active_incidents:
+                self.active_incidents[key] = incident.id
+                logger.info(f"Restored active incident #{incident.id} for {key}")
+
+        logger.info(f"Synced {len(self.active_incidents)} active incidents from database")
+
     def _is_status_page(self, target_config: Dict[str, Any]) -> bool:
         """Check if target is a status page that needs content parsing"""
         name = target_config.get("name", "").lower()

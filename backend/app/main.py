@@ -6,8 +6,9 @@ from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 
 from backend.app.api.routes import router
-from backend.app.models.database import init_db
+from backend.app.models.database import init_db, AsyncSessionLocal
 from backend.app.services.scheduler import scheduler
+from backend.app.services.monitor import monitor
 from backend.app.core.config import settings
 
 # Configure logging
@@ -31,6 +32,10 @@ async def lifespan(app: FastAPI):
     # Initialize database
     await init_db()
     logger.info("Database initialized")
+
+    # Sync active incidents from database to prevent duplicates
+    async with AsyncSessionLocal() as db:
+        await monitor.sync_active_incidents(db)
 
     # Start scheduler
     await scheduler.start()

@@ -272,6 +272,28 @@ async def acknowledge_incident(incident_id: int, db: AsyncSession = Depends(get_
     return {"status": "ok", "incident_id": incident_id}
 
 
+@router.delete("/incidents/{incident_id}")
+async def delete_incident(incident_id: int, db: AsyncSession = Depends(get_db)):
+    """Delete an incident"""
+    result = await db.execute(
+        select(Incident).where(Incident.id == incident_id)
+    )
+    incident = result.scalar_one_or_none()
+
+    if not incident:
+        raise HTTPException(status_code=404, detail="Incident not found")
+
+    # Remove from active_incidents tracking if present
+    if incident.target_name in monitor.active_incidents:
+        if monitor.active_incidents[incident.target_name] == incident_id:
+            del monitor.active_incidents[incident.target_name]
+
+    await db.delete(incident)
+    await db.commit()
+
+    return {"status": "ok", "incident_id": incident_id}
+
+
 @router.post("/ping/{token}")
 async def deadman_ping(
     token: str,
