@@ -63,6 +63,38 @@ targets:
     alerts: [slack, telegram]
     timeout: 5
 
+  - name: "HA 10.1.x"
+    type: http
+    url: "http://10.1.4.1:8123"
+    interval: 60
+    severity: critical
+    alerts: [slack, telegram]
+    timeout: 10
+
+  - name: "HA 10.2.x"
+    type: http
+    url: "http://10.2.4.1:8123"
+    interval: 60
+    severity: critical
+    alerts: [slack, telegram]
+    timeout: 10
+
+  - name: "HA 10.3.x"
+    type: http
+    url: "http://10.3.4.1:8123"
+    interval: 60
+    severity: critical
+    alerts: [slack, telegram]
+    timeout: 10
+
+  - name: "HA 10.4.x"
+    type: http
+    url: "http://10.4.4.1:8123"
+    interval: 60
+    severity: critical
+    alerts: [slack, telegram]
+    timeout: 10
+
 deadman_switches:
   - name: "n8n Research Workflow"
     expected_interval: 3600  # 1 hour in seconds
