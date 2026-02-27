@@ -54,14 +54,20 @@ export default function TargetTable({ targets }) {
               <td className="px-4 py-2">
                 <div className="font-medium text-white">{target.name}</div>
                 {target.url && (
-                  <a
-                    href={target.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-xs text-slate-500 hover:text-blue-400 truncate block max-w-xs"
-                  >
-                    {target.url.replace(/^https?:\/\//, '')}
-                  </a>
+                  target.type === 'ping' ? (
+                    <span className="text-xs text-slate-500">
+                      {target.url}
+                    </span>
+                  ) : (
+                    <a
+                      href={target.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs text-slate-500 hover:text-blue-400 truncate block max-w-xs"
+                    >
+                      {target.url.replace(/^https?:\/\//, '')}
+                    </a>
+                  )
                 )}
                 {target.ai_summary && (
                   <div className="text-xs text-blue-400/80 mt-1 italic">
@@ -86,7 +92,7 @@ export default function TargetTable({ targets }) {
                 {formatPacificTime(target.last_check)}
               </td>
               <td className="px-4 py-2">
-                {target.url && (
+                {target.url && target.type !== 'ping' && (
                   <a
                     href={target.url}
                     target="_blank"

@@ -68,10 +68,13 @@ class SchedulerService:
         """Run a single target check (job wrapper)"""
         async with AsyncSessionLocal() as db:
             try:
-                if target_config["type"] == "http":
+                check_type = target_config["type"]
+                if check_type == "http":
                     await monitor.check_http_target(target_config, db)
+                elif check_type == "ping":
+                    await monitor.check_ping_target(target_config, db)
                 else:
-                    logger.warning(f"Unsupported target type: {target_config['type']}")
+                    logger.warning(f"Unsupported target type: {check_type}")
                 await db.commit()
             except Exception as e:
                 logger.error(f"Error checking target {target_config['name']}: {e}")

@@ -55,10 +55,13 @@ async def get_dashboard(db: AsyncSession = Depends(get_db)):
         uptime_7d = await monitor.calculate_uptime(target_name, 24 * 7, db)
         uptime_30d = await monitor.calculate_uptime(target_name, 24 * 30, db)
 
+        # For ping targets, use host as the display URL
+        display_url = target_config.get("url") or target_config.get("host")
+
         target_status = TargetStatus(
             name=target_name,
             type=target_config["type"],
-            url=target_config.get("url"),
+            url=display_url,
             status=latest_check.status if latest_check else "unknown",
             last_check=latest_check.checked_at if latest_check else None,
             response_time=latest_check.response_time if latest_check else None,

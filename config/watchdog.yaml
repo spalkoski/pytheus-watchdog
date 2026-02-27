@@ -31,6 +31,38 @@ targets:
     alerts: [slack, telegram]
     timeout: 10
 
+  - name: "Tailscale 10.1.x"
+    type: ping
+    host: "10.1.1.1"
+    interval: 60
+    severity: critical
+    alerts: [slack, telegram]
+    timeout: 5
+
+  - name: "Tailscale 10.2.x"
+    type: ping
+    host: "10.2.1.1"
+    interval: 60
+    severity: critical
+    alerts: [slack, telegram]
+    timeout: 5
+
+  - name: "Tailscale 10.3.x"
+    type: ping
+    host: "10.3.1.1"
+    interval: 60
+    severity: critical
+    alerts: [slack, telegram]
+    timeout: 5
+
+  - name: "Tailscale 10.4.x"
+    type: ping
+    host: "10.4.1.1"
+    interval: 60
+    severity: critical
+    alerts: [slack, telegram]
+    timeout: 5
+
 deadman_switches:
   - name: "n8n Research Workflow"
     expected_interval: 3600  # 1 hour in seconds

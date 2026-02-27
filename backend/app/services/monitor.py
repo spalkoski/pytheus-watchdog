@@ -1,8 +1,9 @@
 import httpx
 import logging
 import asyncio
+import platform
 from datetime import datetime, timedelta
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Tuple
 from sqlalchemy import select, and_, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -131,6 +132,104 @@ class MonitoringService:
                 if attempt < self.max_attempts:
                     delay = self.delay_seconds * (self.backoff_multiplier ** (attempt - 1))
                     await asyncio.sleep(delay)
+
+        # All retries failed
+        check_result = CheckResult(
+            target_name=target_name,
+            status="down",
+            response_time=None,
+            status_code=None,
+            error_message=last_error,
+            checked_at=datetime.utcnow()
+        )
+
+        db.add(check_result)
+        await db.flush()
+
+        # Create or update incident
+        await self._handle_failure(target_name, last_error, db, target_config)
+
+        logger.error(f"✗ {target_name} is DOWN: {last_error}")
+        return check_result
+
+    async def check_ping_target(
+        self,
+        target_config: Dict[str, Any],
+        db: AsyncSession
+    ) -> CheckResult:
+        """Perform ICMP ping check with retry logic"""
+        target_name = target_config["name"]
+        host = target_config["host"]
+        timeout = target_config.get("timeout", 5)
+
+        logger.info(f"Pinging target: {target_name} ({host})")
+
+        # Determine ping command based on platform
+        if platform.system().lower() == "windows":
+            ping_cmd = ["ping", "-n", "1", "-w", str(timeout * 1000), host]
+        else:
+            ping_cmd = ["ping", "-c", "1", "-W", str(timeout), host]
+
+        # Retry loop
+        last_error = None
+        for attempt in range(1, self.max_attempts + 1):
+            try:
+                start_time = datetime.utcnow()
+
+                proc = await asyncio.create_subprocess_exec(
+                    *ping_cmd,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE
+                )
+                stdout, stderr = await asyncio.wait_for(
+                    proc.communicate(),
+                    timeout=timeout + 5  # Extra buffer for process overhead
+                )
+
+                end_time = datetime.utcnow()
+                response_time = (end_time - start_time).total_seconds() * 1000  # ms
+
+                if proc.returncode != 0:
+                    raise Exception(f"Ping failed: {stderr.decode().strip() or 'Host unreachable'}")
+
+                # Parse response time from ping output if possible
+                output = stdout.decode()
+                # Try to extract actual ping time from output
+                import re
+                time_match = re.search(r'time[=<](\d+\.?\d*)\s*ms', output, re.IGNORECASE)
+                if time_match:
+                    response_time = float(time_match.group(1))
+
+                # Record successful result
+                check_result = CheckResult(
+                    target_name=target_name,
+                    status="up",
+                    response_time=response_time,
+                    status_code=None,  # N/A for ping
+                    error_message=None,
+                    checked_at=datetime.utcnow()
+                )
+
+                db.add(check_result)
+                await db.flush()
+
+                # Check if this is a recovery from an incident
+                if target_name in self.active_incidents:
+                    await self._resolve_incident(target_name, db, target_config)
+
+                logger.info(f"✓ {target_name} is UP ({response_time:.0f}ms)")
+                return check_result
+
+            except asyncio.TimeoutError:
+                last_error = f"Ping timeout after {timeout}s"
+                logger.warning(f"Attempt {attempt}/{self.max_attempts} failed for {target_name}: {last_error}")
+            except Exception as e:
+                last_error = str(e)
+                logger.warning(f"Attempt {attempt}/{self.max_attempts} failed for {target_name}: {last_error}")
+
+            if attempt < self.max_attempts:
+                delay = self.delay_seconds * (self.backoff_multiplier ** (attempt - 1))
+                await asyncio.sleep(delay)
 
         # All retries failed
         check_result = CheckResult(
