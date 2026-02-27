@@ -27,7 +27,9 @@ export default function DeadManSwitchList({ switches }) {
 
   const formatPacificTime = (dateStr) => {
     if (!dateStr) return 'Never'
-    const date = new Date(dateStr)
+    // Backend sends naive UTC datetimes - ensure they're parsed as UTC
+    const utcStr = dateStr.endsWith('Z') ? dateStr : dateStr + 'Z'
+    const date = new Date(utcStr)
     const time = date.toLocaleString('en-US', {
       timeZone: 'America/Los_Angeles',
       month: 'short',
