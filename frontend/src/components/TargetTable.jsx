@@ -72,9 +72,14 @@ export default function TargetTable({ targets }) {
                   )
                 )}
                 {target.ai_summary && (
-                  <div className="text-xs text-blue-400/80 mt-1 italic">
-                    {target.ai_summary}
-                  </div>
+                  <span className="relative inline-block ml-1 align-middle group">
+                    <svg className="w-3.5 h-3.5 text-blue-400/70 inline cursor-help" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 014.5 0m0 0v5.714a2.25 2.25 0 00.659 1.591L19 14.5M14.25 3.104c.251.023.501.05.75.082M19 14.5l-2.47-2.47M5 14.5l2.47-2.47m0 0a48.578 48.578 0 019.06 0" />
+                    </svg>
+                    <div className="absolute left-0 bottom-full mb-1 hidden group-hover:block z-10 w-64 p-2 text-xs text-blue-200 bg-slate-900 border border-slate-600 rounded shadow-lg italic">
+                      {target.ai_summary}
+                    </div>
+                  </span>
                 )}
               </td>
               <td className="px-4 py-2 text-slate-300">
