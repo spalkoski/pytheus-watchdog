@@ -31,6 +31,34 @@ async def health_check():
     return {"status": "ok", "timestamp": datetime.utcnow().isoformat()}
 
 
+@router.post("/test-notification/{channel}")
+async def test_notification(channel: str):
+    """Send a test notification to verify channel configuration"""
+    from backend.app.services.notifier import notifier
+
+    if channel not in ["telegram", "slack"]:
+        raise HTTPException(status_code=400, detail="Channel must be 'telegram' or 'slack'")
+
+    await notifier.send_alert(
+        title="Test Notification",
+        message="This is a test notification from Pytheus Watchdog. If you received this, your notification channel is configured correctly!",
+        severity="info",
+        target_name="Test",
+        channels=[channel],
+        metadata={"timestamp": int(datetime.utcnow().timestamp())}
+    )
+
+    return {"status": "ok", "message": f"Test notification sent to {channel}"}
+
+
+@router.post("/test-digest")
+async def test_daily_digest():
+    """Send a test daily digest immediately"""
+    from backend.app.services.scheduler import scheduler
+    await scheduler._send_daily_digest()
+    return {"status": "ok", "message": "Daily digest sent"}
+
+
 @router.get("/dashboard", response_model=DashboardData)
 async def get_dashboard(db: AsyncSession = Depends(get_db)):
     """Get dashboard overview data"""
