@@ -1,0 +1,58 @@
+services:
+  watchdog-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: pytheus-watchdog
+    restart: unless-stopped
+
+    # Resource limits - critical for shared VPS
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+
+    # Environment variables
+    env_file:
+      - .env
+
+    # Ports (internal only - will be proxied via Nginx)
+    ports:
+      - "127.0.0.1:8100:8000"
+
+    # Named volume for persistent data
+    volumes:
+      - watchdog-data:/app/data
+
+    # Network
+    networks:
+      - watchdog-net
+
+    # Health check
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+    # Logging
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  watchdog-net:
+    driver: bridge
+    name: pytheus-watchdog-network
+
+volumes:
+  watchdog-data:
+    name: pytheus-watchdog-data
+    driver: local

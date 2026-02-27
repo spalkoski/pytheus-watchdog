@@ -1,0 +1,100 @@
+targets:
+  - name: "n8n"
+    type: http
+    url: "https://n8n.pytheus.com"
+    interval: 60
+    severity: critical
+    alerts: [slack, telegram]
+    timeout: 10
+
+  - name: "Replit Status"
+    type: http
+    url: "https://status.replit.com"
+    interval: 300
+    severity: warning
+    alerts: [slack, telegram]
+    timeout: 15
+
+  - name: "Jedox Status"
+    type: http
+    url: "https://status.jedox.cloud"
+    interval: 300
+    severity: warning
+    alerts: [slack, telegram]
+    timeout: 15
+
+  - name: "SLW.vc"
+    type: http
+    url: "https://www.slw.vc"
+    interval: 60
+    severity: critical
+    alerts: [slack, telegram]
+    timeout: 10
+
+deadman_switches:
+  - name: "n8n Research Workflow"
+    expected_interval: 3600  # 1 hour in seconds
+    severity: warning
+    alerts: [slack, telegram]
+
+  - name: "Daily Data Sync"
+    expected_interval: 86400  # 24 hours in seconds
+    severity: critical
+    alerts: [slack, telegram]
+
+platforms:
+  - name: replit
+    status_url: "https://status.replit.com"
+    type: statuspage
+    check_interval: 300
+
+  - name: openai
+    status_url: "https://status.openai.com"
+    type: statuspage
+    check_interval: 300
+
+  - name: github
+    status_url: "https://www.githubstatus.com"
+    type: statuspage
+    check_interval: 300
+
+  - name: anthropic
+    status_url: "https://status.anthropic.com"
+    type: statuspage
+    check_interval: 300
+
+  - name: slack
+    status_url: "https://status.slack.com"
+    type: statuspage
+    check_interval: 300
+
+notifications:
+  slack:
+    enabled: true
+    webhook_url: ${SLACK_WEBHOOK_URL}
+    channel: "#monitoring"
+
+  telegram:
+    enabled: true
+    bot_token: ${TELEGRAM_BOT_TOKEN}
+    chat_id: ${TELEGRAM_CHAT_ID}
+
+  email:
+    enabled: false
+    smtp_host: ${SMTP_HOST}
+    smtp_port: 587
+    smtp_user: ${SMTP_USER}
+    smtp_password: ${SMTP_PASSWORD}
+    from: "watchdog@pytheus.com"
+    to: ${ALERT_EMAIL}
+
+retry:
+  max_attempts: 3
+  delay_seconds: 10
+  backoff_multiplier: 1.5
+
+server:
+  monitor_local: false  # Disabled in Phase 1
+  disk_threshold: 85
+  memory_threshold: 90
+  cpu_threshold: 95
